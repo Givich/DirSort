@@ -63,7 +63,7 @@ def getElem_XML(fileName):
     History = u'-'
     project = u'-'
 
-    meta = dateTime + ";" + nameKA + ";" + device + chanalN + ";" + chanalName + ";" + res + ";" + cloud + ";" + sunAng + ";" +name + ";" + procLvl + ";" + conditions + ";" + History + ";" + project
+    meta = dateTime + ";" + nameKA + ";" + device + ";" + chanalN + ";" + chanalName + ";" + res + ";" + cloud + ";" + sunAng + ";" +name + ";" + procLvl + ";" + conditions + ";" + History + ";" + project
     print meta
     return meta.encode('utf-8')
 
