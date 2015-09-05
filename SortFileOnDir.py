@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Aug 28 15:37:49 2015
+Created on 29.08.2015 16:48
 
-@author: RSA
+@author: Garvas
 """
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
