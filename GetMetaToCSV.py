@@ -8,9 +8,10 @@ Created on 02.09.2015 16:48
 # -*- coding: utf-8 -*-
 
 import os, re, csv, math
+import shapefile
 from xml.dom.minidom import parseString
 
-targetFolder = u"Z:/SiteliteIMG/Ленобл_Ресурс-П/2/"
+targetFolder = u"Z:/SiteliteIMG/Ленобл_Ресурс-П/"
 
 def find_dir(targetFolder):
 
@@ -24,7 +25,7 @@ def find_dir(targetFolder):
                 print fullname
                 allFile.append(fullname)
 
-    print allFile
+    #print allFile
     return allFile
 
 def getElem_XML(fileName):
@@ -111,12 +112,17 @@ def write_CSV(listFileXML, targetFolder):
     print fCSV
     i=1
     for fileXML in listFileXML:
-        fCSV.writerow([str(i)+';' + ';' + getElem_XML(fileXML)])
+        tmp = [str(i)+';' + ';' + getElem_XML(fileXML)]
+        fCSV.writerow(tmp)
+        lstMeta = tmp[0].split(';')
         i=i+1
+        lstCord = get_Cord(fileXML)
+        create_Shape(lstCord,lstMeta)
 
     csvfile.close()
 
     print u'Done!'
+
 
 def convert_Cord(cord):
 
@@ -127,6 +133,7 @@ def convert_Cord(cord):
 def latLong_ToMerc(lat, lon):
 
     #Pereschev gradusov EPSG:3857
+    # Formula: http://gis-lab.info/qa/dd2mercator.html
 
     if lat>89.5:
         lat=89.5
@@ -144,6 +151,37 @@ def latLong_ToMerc(lat, lon):
     y=a*math.log(math.tan(math.pi/4+rLat/2)*((1-e*math.sin(rLat))/(1+e*math.sin(rLat)))**(e/2))
     return [x, y]
 
+def create_Shape(listCord, listMeta):
+
+    b = listMeta # For short, later removed
+    w = shapefile.Writer(shapefile.POLYGON)
+    w.poly(shapeType=5, parts=[[[listCord[0],listCord[1]], [listCord[2],listCord[3]], [listCord[4],listCord[5]],[listCord[6],listCord[7]]]])
+
+    """Create fields. Need rename and may be add attributes"""
+    w.field('a1')
+    w.field('a2')
+    w.field('a3')
+    w.field('a4')
+    w.field('a5')
+    w.field('a6')
+    w.field('a7')
+    w.field('a8')
+    w.field('a9')
+    w.field('a10')
+    w.field('a11')
+    w.field('a12')
+    w.field('a13')
+    w.field('a14')
+    w.field('a15')
+
+    w.record(a1=b[0], a2=b[1], a3=b[2], a4=b[3], a5=b[4], a6=b[5], a7=b[6], a8=b[7], a9=b[8], a10=b[9], a11=b[10], a12=b[11], a13=b[12], a14=b[13], a15=b[14])
+
+    w.save(targetFolder + "//shapefiles//" + b[10].replace('.tiff','').replace('.tif',''))
+    #prjFile = open(targetFolder + "//shapefiles//" + b[10].replace('.tiff','').replace('.tif','') + ".prj",'wb')
+    #prjFile.write('PROJCS["WGS_84_Pseudo_Mercator",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],PROJECTION["Mercator"],PARAMETER["central_meridian",0],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["Meter",1],PARAMETER["standard_parallel_1",0.0]]')
+
+
+
 """
 Fuctions
 """
@@ -151,6 +189,6 @@ listFileXML = find_dir(targetFolder)
 
 write_CSV(listFileXML, targetFolder)
 
-get_Cord(u'Z:/SiteliteIMG/Ленобл_Ресурс-П/2/0041_0102_10061_1_00083_02_10_003.xml')
+#get_Cord(u'Z:/SiteliteIMG/Ленобл_Ресурс-П/2/0041_0102_10061_1_00083_02_10_003.xml')
 
-convert_Cord(u"29:57:10.965841")
+#convert_Cord(u"29:57:10.965841")
