@@ -13,8 +13,10 @@ import csv
 import math
 import shapefile #https://github.com/GeospatialPython/pyshp
 from xml.dom.minidom import parseString
+from osgeo import ogr, osr
+import postgres
 
-targetFolder = u"C:/Users/RSA/Documents/07.08.2015/5383-РП_Ленинградская обл_геотон_КШМСА_ВР"
+targetFolder = u"Z:/SiteliteIMG/Ленобл_Ресурс-П"
 
 def find_dir(targetFolder):
 
@@ -181,9 +183,15 @@ def create_Shape(listCord, listMeta):
     w.record(a1=b[0], a2=b[1], a3=b[2], a4=b[3], a5=b[4], a6=b[5], a7=b[6], a8=b[7], a9=b[8], a10=b[9], a11=b[10], a12=b[11], a13=b[12], a14=b[13], a15=b[14])
 
     w.save(targetFolder + "//shapefiles//" + b[10].replace('.tiff','').replace('.tif',''))
-    #prjFile = open(targetFolder + "//shapefiles//" + b[10].replace('.tiff','').replace('.tif','') + ".prj",'wb')
-    #prjFile.write('PROJCS["WGS_84_Pseudo_Mercator",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],PROJECTION["Mercator"],PARAMETER["central_meridian",0],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["Meter",1],PARAMETER["standard_parallel_1",0.0]]')
 
+    # spatialRef = osr.SpatialReference()
+    # spatialRef.ImportFromEPSG(3857)
+    #
+    # spatialRef.MorphToESRI()
+    # ptjFile = open(targetFolder + "//shapefiles//" + b[10].replace('.tiff','').replace('.tif','') + ".prj", 'w')
+    # ptjFile.write(spatialRef.ExportToWkt())
+    # ptjFile.close()
+    #
 
 
 """

@@ -11,8 +11,9 @@ from PIL import Image
 from xml.dom.minidom import parseString
 import math
 
-fileName = u"C:/Users/RSA/Documents/07.08.2015/5383-РП_Ленинградская обл_геотон_КШМСА_ВР/293623_Приозерский район, Раздольевское сельское поселение_КШМСА_ВР/fr_0042_0102_02150_1_02143_02_G_40_6.tiff"
-fileNameXML = u"C:/Users/RSA/Documents/07.08.2015/5383-РП_Ленинградская обл_геотон_КШМСА_ВР/293623_Приозерский район, Раздольевское сельское поселение_КШМСА_ВР/fr_0042_0102_02150_1_02143_02_G_40_6.xml"
+Image.MAX_IMAGE_PIXELS = None
+fileName = u"Z:/SiteliteIMG/Ленобл_Ресурс-П/2/0041_0102_10061_1_00083_02_10_003.tif"
+fileNameXML = u"Z:/SiteliteIMG/Ленобл_Ресурс-П/2/0041_0102_10061_1_00083_02_10_003.xml"
 
 im = Image.open(fileName,'r')
 
@@ -122,13 +123,12 @@ a = get_Cord(fileNameXML)
 
 '''/For Test'''
 
-res1 = a[0] - a[2]
-res2 = a[4] - a[6]
-print res1
-print res2
-
-res3 = a[1] - a[3]
-res4 = a[5] - a[7]
-print res3
-print res4
-
+# res1 = a[0] - a[2]
+# res2 = a[4] - a[6]
+# print res1
+# print res2
+#
+# res3 = a[1] - a[3]
+# res4 = a[5] - a[7]
+# print res3
+# print res4
