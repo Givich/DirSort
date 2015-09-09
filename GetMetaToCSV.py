@@ -7,23 +7,27 @@ Created on 02.09.2015 16:48
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os, re, csv, math
-import shapefile
+import os
+import re
+import csv
+import math
+import shapefile #https://github.com/GeospatialPython/pyshp
 from xml.dom.minidom import parseString
 
-targetFolder = u"Z:/SiteliteIMG/Ленобл_Ресурс-П/"
+targetFolder = u"C:/Users/RSA/Documents/07.08.2015/5383-РП_Ленинградская обл_геотон_КШМСА_ВР"
 
 def find_dir(targetFolder):
 
     allFile = []
     ext = re.compile(r"^.+\.(?:xml)$", re.IGNORECASE + re.UNICODE)
+    #unExt = re.compile(r"^.+\.(?:aux.xml)$", re.IGNORECASE + re.UNICODE)
     for root, dirs, files in os.walk(targetFolder):
         for name in files:
             if ext.match(name):
-                fullname = os.path.join(root, name)
-                #>>>>>>  dopilit' na proverku musora!!!
-                print fullname
-                allFile.append(fullname)
+                    fullname = os.path.join(root, name)
+                    #>>>>>>  dopilit' na proverku musora!!!
+                    print fullname
+                    allFile.append(fullname)
 
     #print allFile
     return allFile
