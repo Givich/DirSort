@@ -14,6 +14,7 @@ import math
 import shapefile #https://github.com/GeospatialPython/pyshp
 from xml.dom.minidom import parseString
 from osgeo import ogr
+from osgeo import osr
 from osgeo import gdal
 import postgres
 

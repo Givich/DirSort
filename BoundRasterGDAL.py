@@ -7,10 +7,11 @@ Created on 09.09.2015 21:22
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 from osgeo import ogr
+from osgeo import osr
 from osgeo import gdal
 import os
 
-fileName = u"Z:/SiteliteIMG/Ленобл_Ресурс-П/4/0041_0102_10061_1_00083_02_10_007.tif"
+fileName = u"Z:/SiteliteIMG/293623_Приозерский район, Раздольевское сельское поселение_КШМСА_ВР/fr_0042_0102_02150_1_02143_02_G_40_6.tiff"
 
 """
 When this function is done, it will be cut to form a new shapefile,
@@ -80,7 +81,7 @@ if not geotransform[0]==0:
         #-----------------------------------------------------------------------
 
         # Get a Layer's Extent
-        inShapefile = u"Z:/SiteliteIMG/Ленобл_Ресурс-П/shapefiles/0041_0102_10061_1_00083_02_10_007.shp"
+        inShapefile = u"Z:/SiteliteIMG/293623_Приозерский район, Раздольевское сельское поселение_КШМСА_ВР//shapefiles/fr_0042_0102_02150_1_02143_02_G_40_6.shp"
         inDriver = ogr.GetDriverByName("ESRI Shapefile")
         inDataSource = inDriver.Open(inShapefile, 0)
         inLayer = inDataSource.GetLayer()
