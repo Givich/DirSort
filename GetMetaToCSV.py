@@ -13,13 +13,18 @@ import csv
 import math
 import shapefile #https://github.com/GeospatialPython/pyshp
 from xml.dom.minidom import parseString
-from osgeo import ogr, osr
+from osgeo import ogr
+from osgeo import gdal
 import postgres
 
-targetFolder = u"Z:/SiteliteIMG/Ленобл_Ресурс-П"
+targetFolder = u"Z:/SiteliteIMG/293623_Приозерский район, Раздольевское сельское поселение_КШМСА_ВР"
 
 def find_dir(targetFolder):
-
+    """
+    Find for all files in a directory corresponding to the regular expression
+    :param targetFolder: directory
+    :return: list of the absolute filenames
+    """
     allFile = []
     ext = re.compile(r"^.+\.(?:xml)$", re.IGNORECASE + re.UNICODE)
     #unExt = re.compile(r"^.+\.(?:aux.xml)$", re.IGNORECASE + re.UNICODE)
@@ -31,11 +36,15 @@ def find_dir(targetFolder):
                     print fullname
                     allFile.append(fullname)
 
-    #print allFile
+    print allFile
     return allFile
 
 def getElem_XML(fileName):
-
+    """
+    Selects the data from the XML related tags
+    :param fileName: absolute filename
+    :return: Line with parameters separated by semicolons (UTF-8)
+    """
     file = open(fileName)
     data = file.read()
     file.close()
@@ -76,6 +85,11 @@ def getElem_XML(fileName):
     return meta.encode('utf-8')
 
 def get_Cord(fileName):
+    """
+    From XML Select is selected coordinates of the corners
+    :param fileName: absolute filename
+    :return: List of coordinates in the projection EPSG: 3857
+    """
 
     file = open(fileName)
     data = file.read()
@@ -111,7 +125,13 @@ def get_Cord(fileName):
     return listNewCord
 
 def write_CSV(listFileXML, targetFolder):
-
+    """
+    The function creates a file "meta.csv" in the root folder, which stores all metadata
+    Calls the extraction coordinate and create a shapefile
+    :param listFileXML: List absolute filename
+    :param targetFolder: Directory
+    :return: NONE! Print "Done!"
+    """
     csvfile = open(targetFolder + "\\meta.csv", "wb")
     print csvfile
     fCSV = csv.writer(csvfile, delimiter='\t')
@@ -131,15 +151,23 @@ def write_CSV(listFileXML, targetFolder):
 
 
 def convert_Cord(cord):
-
+    """
+    Converts coordinates from format DD:MM:SS.SSSSS to format DD.DDDDDD
+    :param cord: coordinate DD:MM:SS.SSSSS
+    :return: coordinate DD.DDDDDD
+    """
     newCord = float(cord[0:2]) + (float(cord[3:5]))/60 + (float(cord[6:15]))/3600
 
     return newCord
 
 def latLong_ToMerc(lat, lon):
-
-    #Pereschev gradusov EPSG:3857
+    """
+    Recounts the latitude-longitude to Mercator (EPSG: 3857)
     # Formula: http://gis-lab.info/qa/dd2mercator.html
+    :param lat: coordinate latitude
+    :param lon: coordinate longitude
+    :return: List of the two coordinates for a single point
+    """
 
     if lat>89.5:
         lat=89.5
@@ -158,6 +186,13 @@ def latLong_ToMerc(lat, lon):
     return [x, y]
 
 def create_Shape(listCord, listMeta):
+    """
+    Creates a vector file format SHP.
+    Creates a folder in path of where to put all the files with the names of duplicate names image files
+    :param listCord: Coordinate list
+    :param listMeta: List of metadata
+    :return: NONE! Only print, that all good :)
+    """
 
     b = listMeta # For short, later removed
     w = shapefile.Writer(shapefile.POLYGON)
@@ -183,6 +218,8 @@ def create_Shape(listCord, listMeta):
     w.record(a1=b[0], a2=b[1], a3=b[2], a4=b[3], a5=b[4], a6=b[5], a7=b[6], a8=b[7], a9=b[8], a10=b[9], a11=b[10], a12=b[11], a13=b[12], a14=b[13], a15=b[14])
 
     w.save(targetFolder + "//shapefiles//" + b[10].replace('.tiff','').replace('.tif',''))
+
+    print u"File recorded to: "+targetFolder+u"/shapefiles/"
 
     # spatialRef = osr.SpatialReference()
     # spatialRef.ImportFromEPSG(3857)
