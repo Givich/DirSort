@@ -19,7 +19,7 @@ from osgeo import osr
 from osgeo import gdal
 import psycopg2
 
-Folder = u"Z:\SiteliteIMG\Ленобл_Ресурс-П"
+Folder = u"C:\\Users\\RSA\\Documents\\07.08.2015\\5383-РП_Ленинградская обл_геотон_КШМСА_ВР\\293610_Всеволжский район_геотон"
 targetFolder = os.path.normpath(Folder)
 
 
@@ -69,7 +69,6 @@ def getElem_XML(fileName):
     #Format
     name = nameTag.replace('<cDataFileName>','').replace('</cDataFileName>','')
     date = dateTag.replace('<dSceneDate>','').replace('</dSceneDate>','').replace('/','-')
-    print date
     time = timeTag.replace('<tSceneTime>','').replace('</tSceneTime>','')
     dateTime = date + ' ' + time[0:8]
     nameKA = nameKATag.replace('<cCodeKA>','').replace('</cCodeKA>','')
@@ -310,9 +309,19 @@ def bound_raster(fileNameXML, listMeta):
 
             print poly.ExportToWkt()
 
+
+            file = open(fileNameXML)
+            data = file.read()
+            file.close()
+            dom = parseString(data)
+
+            # Cordinats Tag. Check coord system
+            coordCodeTag = dom.getElementsByTagName('nCoordSystCode')[0].toxml()
+            coordCode = coordCodeTag.replace('<nCoordSystCode>','').replace('</nCoordSystCode>','')
+
             # Change prjection FROM
             source = osr.SpatialReference() #https://pcjericks.github.io/py-gdalogr-cookbook/projection.html#reproject-a-geometry
-            source.ImportFromEPSG(32635)
+            source.ImportFromEPSG(int(coordCode))
 
             # Change prjection TO
             target = osr.SpatialReference()
@@ -336,7 +345,7 @@ def bound_raster(fileNameXML, listMeta):
             inLayer = inDataSource.GetLayer()
             for feature in inLayer:
                 geom = feature.GetGeometryRef()
-                print geom.ExportToWkt()
+                print u"InSHP>>:"+geom.ExportToWkt()
 
             layerSpaFil = geom.Intersection(poly)
 
@@ -397,29 +406,55 @@ def bound_raster(fileNameXML, listMeta):
             geo = layerSpaFil.ExportToWkt()
             print u">>>> "+geo
 
-
-            try:
-                conn = psycopg2.connect("dbname='gdb0' host='datahub' port='5432' user='******' password='*******'")
-                print u"connecting is OK!"
-            except:
-                print "I am unable to connect to the database"
-                sys.exit(1)
-
-            cur = conn.cursor()
-
-            sql = '''INSERT INTO public.spc_vector_contur (geom, ogc_fid, id, session_ti, ka, device, channels_c, channels, resolution, cloud_cove, sun_angle, name, proc_level, conditions, history_or, projects_c) VALUES (ST_GeomFromText(%s, 3857), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
-            param = [geo, listMeta[0], listMeta[1], listMeta[2], listMeta[3], listMeta[4], listMeta[5], listMeta[6], listMeta[7], listMeta[8], listMeta[9], listMeta[10], listMeta[11], listMeta[12], listMeta[13], listMeta[14]]
-            print param
-
-            cur.execute(sql, param)
-            conn.commit()
-            print cur.rowcount
-
-            cur.close()
-            conn.close()
+            # dbData = parce_db_data (u"D:\SUAI\PyCharm\BD_spiiras.xml")
+            # print "dbname="+dbData[0]+" host=:"+dbData[1]+" port="+dbData[2]+" user="+dbData[3]+" password="+dbData[4]
+            #
+            # try:
+            #     conn = psycopg2.connect("dbname="+dbData[0]+" host="+dbData[1]+" port="+dbData[2]+" user="+dbData[3]+"password="+dbData[4])
+            #     print u"connecting is OK!"
+            # except:
+            #     print "I am unable to connect to the database"
+            #     sys.exit(1)
+            #
+            # cur = conn.cursor()
+            #
+            # sql = '''INSERT INTO public.spc_vector_contur (geom, ogc_fid, id, session_ti, ka, device, channels_c, channels, resolution, cloud_cove, sun_angle, name, proc_level, conditions, history_or, projects_c) VALUES (ST_GeomFromText(%s, 3857), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
+            # param = [geo, listMeta[0], listMeta[1], listMeta[2], listMeta[3], listMeta[4], listMeta[5], listMeta[6], listMeta[7], listMeta[8], listMeta[9], listMeta[10], listMeta[11], listMeta[12], listMeta[13], listMeta[14]]
+            # print param
+            #
+            # cur.execute(sql, param)
+            # conn.commit()
+            #
+            # cur.close()
+            # conn.close()
 
             feature.Destroy()
             inDataSource.Destroy()
+
+dbFile = u"D:\SUAI\PyCharm\BD_spiiras.xml"
+
+def parce_db_data (dbFile):
+
+    file = open(dbFile)
+    data = file.read()
+    file.close()
+    dom = parseString(data)
+
+    listDbData = []
+
+    # DB data
+    name = (dom.getElementsByTagName('NameBD')[0].toxml()).replace('<NameBD>',"'").replace('</NameBD>',"'")
+    listDbData.append(name)
+    host = (dom.getElementsByTagName('Host')[0].toxml()).replace('<Host>',"'").replace('</Host>',"'")
+    listDbData.append(host)
+    port = (dom.getElementsByTagName('Port')[0].toxml()).replace('<Port>',"'").replace('</Port>',"'")
+    listDbData.append(port)
+    user = (dom.getElementsByTagName('User')[0].toxml()).replace('<User>',"'").replace('</User>',"'")
+    listDbData.append(user)
+    passw = (dom.getElementsByTagName('Pass')[0].toxml()).replace('<Pass>',"'").replace('</Pass>',"'")
+    listDbData.append(passw)
+
+    return listDbData
 
 
 """
