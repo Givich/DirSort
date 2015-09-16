@@ -7,6 +7,7 @@ Created on 02.09.2015 16:48
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import sys
 import os
 import re
 import csv
@@ -16,9 +17,11 @@ from xml.dom.minidom import parseString
 from osgeo import ogr
 from osgeo import osr
 from osgeo import gdal
-import postgres
+import psycopg2
 
-targetFolder = u"Z:/SiteliteIMG/293623_Приозерский район, Раздольевское сельское поселение_КШМСА_ВР"
+Folder = u"Z:\SiteliteIMG\Ленобл_Ресурс-П"
+targetFolder = os.path.normpath(Folder)
+
 
 def find_dir(targetFolder):
     """
@@ -44,7 +47,7 @@ def getElem_XML(fileName):
     """
     Selects the data from the XML related tags
     :param fileName: absolute filename
-    :return: Line with parameters separated by semicolons (UTF-8)
+    :return: String with parameters separated by semicolons (UTF-8)
     """
     file = open(fileName)
     data = file.read()
@@ -60,28 +63,33 @@ def getElem_XML(fileName):
     chanalNTag = dom.getElementsByTagName('nNChannel')[0].toxml()
     resTag = dom.getElementsByTagName('nPixelImg')[0].toxml()
     cloudTag = u'1'
-    sunAngTag = dom.getElementsByTagName('aAngleSum')[0].toxml()
+    sunAngTag = dom.getElementsByTagName('aSunElevC')[0].toxml()
     procLvlTag = dom.getElementsByTagName('cLevel')[0].toxml()
 
     #Format
     name = nameTag.replace('<cDataFileName>','').replace('</cDataFileName>','')
-    date = dateTag.replace('<dSceneDate>','').replace('</dSceneDate>','').replace('/','.')
+    date = dateTag.replace('<dSceneDate>','').replace('</dSceneDate>','').replace('/','-')
+    print date
     time = timeTag.replace('<tSceneTime>','').replace('</tSceneTime>','')
-    dateTime = date+' '+time[0:8]
+    dateTime = date + ' ' + time[0:8]
     nameKA = nameKATag.replace('<cCodeKA>','').replace('</cCodeKA>','')
     device = deviceTag.replace('<cDeviceName>','').replace('</cDeviceName>','')
     chanalN = chanalNTag.replace('<nNChannel>','').replace('</nNChannel>','')
     chanalName = u'-'
     res = resTag.replace('<nPixelImg>','').replace('</nPixelImg>','')
     cloud = cloudTag.replace('1','0')
-    sunAng = sunAngTag.replace('<aAngleSum>','').replace('</aAngleSum>','')
-    procLvl = procLvlTag.replace('<cLevel>','').replace('</cLevel>','')
+    sunAng = sunAngTag.replace('<aSunElevC>','').replace('</aSunElevC>','')
+
+    procLvl = "3"
+    #procLvl = procLvlTag.replace('<cLevel>','').replace('</cLevel>','')
+
+    degSunAng = str(convert_Cord(sunAng))
 
     conditions = u'Restriction'
     History = u'-'
     project = u'-'
 
-    meta = dateTime + ";" + nameKA + ";" + device + ";" + chanalN + ";" + chanalName + ";" + res + ";" + cloud + ";" + sunAng + ";" +name + ";" + procLvl + ";" + conditions + ";" + History + ";" + project
+    meta = dateTime + ";" + nameKA + ";" + device + ";" + chanalN + ";" + chanalName + ";" + res + ";" + cloud + ";" + degSunAng + ";" +name + ";" + procLvl + ";" + conditions + ";" + History + ";" + project
     print meta
     return meta.encode('utf-8')
 
@@ -139,12 +147,13 @@ def write_CSV(listFileXML, targetFolder):
     print fCSV
     i=1
     for fileXML in listFileXML:
-        tmp = [str(i)+';' + ';' + getElem_XML(fileXML)]
+        tmp = [str(i)+';1' + ';' + getElem_XML(fileXML)]
         fCSV.writerow(tmp)
         lstMeta = tmp[0].split(';')
         i=i+1
         lstCord = get_Cord(fileXML)
         create_Shape(lstCord,lstMeta)
+        bound_raster(fileXML, lstMeta)
 
     csvfile.close()
 
@@ -222,21 +231,208 @@ def create_Shape(listCord, listMeta):
 
     print u"File recorded to: "+targetFolder+u"/shapefiles/"
 
-    # spatialRef = osr.SpatialReference()
-    # spatialRef.ImportFromEPSG(3857)
-    #
-    # spatialRef.MorphToESRI()
-    # ptjFile = open(targetFolder + "//shapefiles//" + b[10].replace('.tiff','').replace('.tif','') + ".prj", 'w')
-    # ptjFile.write(spatialRef.ExportToWkt())
-    # ptjFile.close()
-    #
+
+def bound_raster(fileNameXML, listMeta):
+    """
+    Try open file TIFF or TIF file, if its imposible write ERROR
+    If file have not metadata sys.exit(1)
+    When this function is done, it will be cut to form a new shapefile,
+    by calculating the intersection of the outline of the image formed from the shapefile and metadata.
+    Yes, they do not match!
+    Create new shapefile by ogr tools
+    :param fileNameXML: name XML file
+    :param listMeta: list of metadata for this file
+    :return: NONE!
+    """
+
+    try:
+        try:
+            fileName = fileNameXML.replace('.xml','.tiff')
+            # open dataset
+            dataset = gdal.Open(fileName)
+            print u'Драйвер: ', dataset.GetDriver().ShortName, u'/', dataset.GetDriver().LongName
+            print u'Размер ',dataset.RasterXSize, u'x', dataset.RasterYSize, u'x', dataset.RasterCount
+            print u'Проекция ', dataset.GetProjection()
+            geotransform = dataset.GetGeoTransform()
+            if not geotransform is None:
+                print u'Начало координат (',geotransform[0], u',',geotransform[3],u')'
+                print u'Размер пиксела = (',geotransform[1], u',',geotransform[5],u')'
+
+        except:
+            fileName = fileNameXML.replace('.xml','.tif')
+            # open dataset
+            dataset = gdal.Open(fileName)
+            print u'Драйвер: ', dataset.GetDriver().ShortName, u'/', dataset.GetDriver().LongName
+            print u'Размер ',dataset.RasterXSize, u'x', dataset.RasterYSize, u'x', dataset.RasterCount
+            print u'Проекция ', dataset.GetProjection()
+            geotransform = dataset.GetGeoTransform()
+            if not geotransform is None:
+                print u'Начало координат (',geotransform[0], u',',geotransform[3],u')'
+                print u'Размер пиксела = (',geotransform[1], u',',geotransform[5],u')'
+
+
+    except:
+        print u"Error file format"
+        sys.exit(1)
+
+
+    if not geotransform[0]==0:
+        if not geotransform[3]==0:
+            # Get cord of corners for points shapefiles
+            newXA = geotransform[0]
+            newYA = geotransform[3]
+            print newXA, newYA
+
+
+            newXB = geotransform[0] + dataset.RasterXSize*geotransform[1]
+            newYB = geotransform[3]
+            print newXB, newYB
+
+            newXC = geotransform[0] + dataset.RasterXSize*geotransform[1]
+            newYC = geotransform[3] + dataset.RasterYSize*geotransform[5]
+            print newXC, newYC
+
+            newXD = geotransform[0]
+            newYD = geotransform[3] + dataset.RasterYSize*geotransform[5]
+            print newXD, newYD
+
+            # Create ring from points corner raster
+            ring = ogr.Geometry(ogr.wkbLinearRing)
+            ring.AddPoint_2D(newXA, newYA)
+            ring.AddPoint_2D(newXB, newYB)
+            ring.AddPoint_2D(newXC, newYC)
+            ring.AddPoint_2D(newXD, newYD)
+            ring.AddPoint_2D(newXA, newYA)
+
+            # Create polygon
+            poly = ogr.Geometry(ogr.wkbPolygon)
+            poly.AddGeometry(ring)
+
+            print poly.ExportToWkt()
+
+            # Change prjection FROM
+            source = osr.SpatialReference() #https://pcjericks.github.io/py-gdalogr-cookbook/projection.html#reproject-a-geometry
+            source.ImportFromEPSG(32635)
+
+            # Change prjection TO
+            target = osr.SpatialReference()
+            target.ImportFromEPSG(3857)
+
+            transform = osr.CoordinateTransformation(source, target)
+
+            poly.Transform(transform)
+            print poly.ExportToWkt()
+            print u"POLY:",poly
+            #-----------------------------------------------------------------------
+
+            (head, tail) = os.path.split(fileNameXML)
+            print tail
+
+            # Get a Layer's Extent
+            inShapefile = targetFolder + "/shapefiles/" + tail.replace('.xml', '.shp')
+            print inShapefile
+            inDriver = ogr.GetDriverByName("ESRI Shapefile")
+            inDataSource = inDriver.Open(inShapefile, 0)
+            inLayer = inDataSource.GetLayer()
+            for feature in inLayer:
+                geom = feature.GetGeometryRef()
+                print geom.ExportToWkt()
+
+            layerSpaFil = geom.Intersection(poly)
+
+            print u"RESULT:",layerSpaFil.ExportToWkt()
+
+            # Save to a new Shapefile
+            outShapefile = targetFolder + "/shapefiles//" + tail.replace('.xml', '_c.shp')
+            print outShapefile
+            outDriver = ogr.GetDriverByName("ESRI Shapefile")
+
+            # Remove output shapefile if it already exists
+            if os.path.exists(outShapefile):
+                outDriver.DeleteDataSource(outShapefile)
+
+            outDataSource = outDriver.CreateDataSource(outShapefile)
+            outLayer = outDataSource.CreateLayer("spatial", geom_type=ogr.wkbPolygon)
+
+            # Add fields (create with ogr type)
+            outLayer.CreateField(ogr.FieldDefn("ogc_fid", ogr.OFTInteger))
+            outLayer.CreateField(ogr.FieldDefn("id", ogr.OFTInteger))
+            outLayer.CreateField(ogr.FieldDefn("session_ti", ogr.OFTString))
+            outLayer.CreateField(ogr.FieldDefn("ka", ogr.OFTString))
+            outLayer.CreateField(ogr.FieldDefn("device", ogr.OFTString))
+            outLayer.CreateField(ogr.FieldDefn("channels_c", ogr.OFTInteger))
+            outLayer.CreateField(ogr.FieldDefn("channels", ogr.OFTString))
+            outLayer.CreateField(ogr.FieldDefn("resolution", ogr.OFTReal))
+            outLayer.CreateField(ogr.FieldDefn("cloud_cove", ogr.OFTInteger))
+            outLayer.CreateField(ogr.FieldDefn("sun_angle", ogr.OFTString))
+            outLayer.CreateField(ogr.FieldDefn("name", ogr.OFTString))
+            outLayer.CreateField(ogr.FieldDefn("proc_level", ogr.OFTString))
+            outLayer.CreateField(ogr.FieldDefn("conditions", ogr.OFTString))
+            outLayer.CreateField(ogr.FieldDefn("history_or", ogr.OFTString))
+            outLayer.CreateField(ogr.FieldDefn("projects_c", ogr.OFTString))
+
+            featureDefn = outLayer.GetLayerDefn()
+            feature = ogr.Feature(featureDefn)
+
+            #add data
+            feature.SetField("ogc_fid", listMeta[0])
+            feature.SetField("id", listMeta[1])
+            feature.SetField("session_ti", listMeta[2])
+            feature.SetField("ka", listMeta[3])
+            feature.SetField("device", listMeta[4])
+            feature.SetField("channels_c", listMeta[5])
+            feature.SetField("channels", listMeta[6])
+            feature.SetField("resolution", listMeta[7])
+            feature.SetField("cloud_cove", listMeta[8])
+            feature.SetField("sun_angle", listMeta[9])
+            feature.SetField("name", listMeta[10])
+            feature.SetField("proc_level", listMeta[11])
+            feature.SetField("conditions", listMeta[12])
+            feature.SetField("history_or", listMeta[13])
+            feature.SetField("projects_c", listMeta[14])
+
+            feature.SetGeometry(layerSpaFil)
+            outLayer.CreateFeature(feature)
+
+            geo = layerSpaFil.ExportToWkt()
+            print u">>>> "+geo
+
+
+            try:
+                conn = psycopg2.connect("dbname='gdb0' host='datahub' port='5432' user='******' password='*******'")
+                print u"connecting is OK!"
+            except:
+                print "I am unable to connect to the database"
+                sys.exit(1)
+
+            cur = conn.cursor()
+
+            sql = '''INSERT INTO public.spc_vector_contur (geom, ogc_fid, id, session_ti, ka, device, channels_c, channels, resolution, cloud_cove, sun_angle, name, proc_level, conditions, history_or, projects_c) VALUES (ST_GeomFromText(%s, 3857), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
+            param = [geo, listMeta[0], listMeta[1], listMeta[2], listMeta[3], listMeta[4], listMeta[5], listMeta[6], listMeta[7], listMeta[8], listMeta[9], listMeta[10], listMeta[11], listMeta[12], listMeta[13], listMeta[14]]
+            print param
+
+            cur.execute(sql, param)
+            conn.commit()
+            print cur.rowcount
+
+            cur.close()
+            conn.close()
+
+            feature.Destroy()
+            inDataSource.Destroy()
 
 
 """
 Fuctions
 """
-listFileXML = find_dir(targetFolder)
 
+# if __name__ == '__main__':
+#     args = sys.argv[ 1: ]
+#     inPath = args[ 0 ]
+#     outPath = args[ 1 ]
+#     print inPath,u"dfgdf",outPath
+
+listFileXML = find_dir(targetFolder)
 write_CSV(listFileXML, targetFolder)
 
 #get_Cord(u'Z:/SiteliteIMG/Ленобл_Ресурс-П/2/0041_0102_10061_1_00083_02_10_003.xml')
