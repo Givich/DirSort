@@ -1,5 +1,13 @@
 # -*- coding: utf-8 -*-
 """
+Created on 13.10.2015 14:24
+
+@author: RSA
+"""
+# !/usr/bin/env python
+# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
+"""
 Created on 02.09.2015 16:48
 
 @author: Garvas
@@ -19,7 +27,7 @@ from osgeo import osr
 from osgeo import gdal
 import psycopg2
 
-targetFolder = u"J:/Resurs-P/07.08.2015/5383-РП_Ленинградская обл_геотон_КШМСА_ВР/293623_Приозерский район, Раздольевское сельское поселение_КШМСА_ВР"
+targetFolder = u"J:/Resurs-P/07.08.2015/5383-РП_Ленинградская обл_геотон_КШМСА_ВР/293610_Всеволжский район_геотон/02051_04"
 #targetFolder = os.path.normpath(Folder)
 
 
@@ -92,6 +100,50 @@ def getElem_XML(fileName):
     print meta
     return meta.encode('utf-8')
 
+def get_Detail_Region(fileName):
+    """
+    get detail point of region from metadata
+
+    """
+    file = open(fileName)
+    data = file.read()
+    file.close()
+    dom = parseString(data)
+
+    #Metadata
+    latListTag = dom.getElementsByTagName('bPointLatWGS')[0].toxml()
+    lonListTag = dom.getElementsByTagName('bPointLonWGS')[0].toxml()
+
+
+    #Format
+    latSTR = latListTag.replace('<bPointLatWGS>','').replace('</bPointLatWGS>',' ')
+    lonSTR = lonListTag.replace('<bPointLonWGS>','').replace('</bPointLonWGS>',' ')
+
+    latList = list(latSTR.split(','))
+    lonList = list(lonSTR.split(','))
+
+    print latList
+    print lonList
+    print latList[0]
+    print float(latList[0])
+
+    listNewCord =[]
+    i=0
+    a = len(latList)
+    print u">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    print a
+
+    while i < (len(latList)):
+        newCord = latLong_ToMerc(float(latList[i]), float(lonList[i]))
+        print latList[i]
+        print lonList[i] + u"___________"
+        print i
+        i = i+1
+        listNewCord.append(newCord)
+
+    print listNewCord
+    return listNewCord
+
 def get_Cord(fileName):
     """
     From XML Select is selected coordinates of the corners
@@ -150,9 +202,9 @@ def write_CSV(listFileXML, targetFolder):
         fCSV.writerow(tmp)
         lstMeta = tmp[0].split(';')
         i=i+1
-        lstCord = get_Cord(fileXML)
-        create_Shape(lstCord,lstMeta)
-        bound_raster(fileXML, lstMeta)
+        lstCord = get_Detail_Region(fileXML)
+        #create_Shape(lstCord,lstMeta)
+        bound_raster(fileXML, lstMeta,lstCord)
 
     csvfile.close()
 
@@ -231,7 +283,7 @@ def create_Shape(listCord, listMeta):
     print u"File recorded to: "+targetFolder+u"/shapefiles/"
 
 
-def bound_raster(fileNameXML, listMeta):
+def bound_raster(fileNameXML, listMeta,listCord):
     """
     Try open file TIFF or TIF file, if its imposible write ERROR
     If file have not metadata sys.exit(1)
@@ -241,6 +293,7 @@ def bound_raster(fileNameXML, listMeta):
     Create new shapefile by ogr tools
     :param fileNameXML: name XML file
     :param listMeta: list of metadata for this file
+    :param listCord: list of cordinates detail region
     :return: NONE!
     """
 
@@ -274,205 +327,158 @@ def bound_raster(fileNameXML, listMeta):
         print u"Error file format"
         sys.exit(1)
 
+    ring = ogr.Geometry(ogr.wkbLinearRing)
+    i = 0
+    while i < len(listCord):
+        ring.AddPoint_2D(listCord[i][0], listCord[i][1])
+        i=i+1
+    ring.AddPoint_2D(listCord[0][0], listCord[0][1])
 
-    if not geotransform[0]==0:
-        if not geotransform[3]==0:
-            # Get cord of corners for points shapefiles
-            newXA = geotransform[0]
-            newYA = geotransform[3]
-            print newXA, newYA
+    # Create polygon
+    poly = ogr.Geometry(ogr.wkbPolygon)
+    poly.AddGeometry(ring)
 
+    print u"Geometry: " + poly.ExportToWkt()
 
-            newXB = geotransform[0] + dataset.RasterXSize*geotransform[1]
-            newYB = geotransform[3]
-            print newXB, newYB
+    layerSpaFil = poly
 
-            newXC = geotransform[0] + dataset.RasterXSize*geotransform[1]
-            newYC = geotransform[3] + dataset.RasterYSize*geotransform[5]
-            print newXC, newYC
-
-            newXD = geotransform[0]
-            newYD = geotransform[3] + dataset.RasterYSize*geotransform[5]
-            print newXD, newYD
-
-            # Create ring from points corner raster
-            ring = ogr.Geometry(ogr.wkbLinearRing)
-            ring.AddPoint_2D(newXA, newYA)
-            ring.AddPoint_2D(newXB, newYB)
-            ring.AddPoint_2D(newXC, newYC)
-            ring.AddPoint_2D(newXD, newYD)
-            ring.AddPoint_2D(newXA, newYA)
-
-            # Create polygon
-            poly = ogr.Geometry(ogr.wkbPolygon)
-            poly.AddGeometry(ring)
-
-            print poly.ExportToWkt()
-
-
-            file = open(fileNameXML)
-            data = file.read()
-            file.close()
-            dom = parseString(data)
-
-            # Cordinats Tag. Check coord system
-            coordCodeTag = dom.getElementsByTagName('nCoordSystCode')[0].toxml()
-            coordCode = coordCodeTag.replace('<nCoordSystCode>','').replace('</nCoordSystCode>','')
-
-            # Change prjection FROM
-            source = osr.SpatialReference() #https://pcjericks.github.io/py-gdalogr-cookbook/projection.html#reproject-a-geometry
-            source.ImportFromEPSG(int(coordCode))
-
-            # Change prjection TO
-            target = osr.SpatialReference()
-            target.ImportFromEPSG(3857)
-
-            transform = osr.CoordinateTransformation(source, target)
-
-            poly.Transform(transform)
-            print poly.ExportToWkt()
-            print u"POLY:",poly
-            #-----------------------------------------------------------------------
-
-            (head, tail) = os.path.split(fileNameXML)
-            print tail
-
-            # Get a Layer's Extent
-            inShapefile = targetFolder + "/shapefiles/" + tail.replace('.xml', '.shp')
-            print inShapefile
-            inDriver = ogr.GetDriverByName("ESRI Shapefile")
-            inDataSource = inDriver.Open(inShapefile, 0)
-            inLayer = inDataSource.GetLayer()
-            for feature in inLayer:
-                geom = feature.GetGeometryRef()
-                print u"InSHP>>:"+geom.ExportToWkt()
-
-            layerSpaFil = geom.Intersection(poly)
-
-            print u"RESULT:",layerSpaFil.ExportToWkt()
-
-            # Save to a new Shapefile
-            outShapefile = targetFolder + "/shapefiles//" + tail.replace('.xml', '_c.shp')
-            print outShapefile
-            outDriver = ogr.GetDriverByName("ESRI Shapefile")
-
-            # Remove output shapefile if it already exists
-            if os.path.exists(outShapefile):
-                outDriver.DeleteDataSource(outShapefile)
-
-            outDataSource = outDriver.CreateDataSource(outShapefile)
-            outLayer = outDataSource.CreateLayer("spatial", geom_type=ogr.wkbPolygon)
-
-            # Add fields (create with ogr type)
-            outLayer.CreateField(ogr.FieldDefn("ogc_fid", ogr.OFTInteger))
-            outLayer.CreateField(ogr.FieldDefn("id", ogr.OFTInteger))
-            outLayer.CreateField(ogr.FieldDefn("session_ti", ogr.OFTString))
-            outLayer.CreateField(ogr.FieldDefn("ka", ogr.OFTString))
-            outLayer.CreateField(ogr.FieldDefn("device", ogr.OFTString))
-            outLayer.CreateField(ogr.FieldDefn("channels_c", ogr.OFTInteger))
-            outLayer.CreateField(ogr.FieldDefn("channels", ogr.OFTString))
-            outLayer.CreateField(ogr.FieldDefn("resolution", ogr.OFTReal))
-            outLayer.CreateField(ogr.FieldDefn("cloud_cove", ogr.OFTInteger))
-            outLayer.CreateField(ogr.FieldDefn("sun_angle", ogr.OFTString))
-            outLayer.CreateField(ogr.FieldDefn("name", ogr.OFTString))
-            outLayer.CreateField(ogr.FieldDefn("proc_level", ogr.OFTString))
-            outLayer.CreateField(ogr.FieldDefn("conditions", ogr.OFTString))
-            outLayer.CreateField(ogr.FieldDefn("history_or", ogr.OFTString))
-            outLayer.CreateField(ogr.FieldDefn("projects_c", ogr.OFTString))
-
-            featureDefn = outLayer.GetLayerDefn()
-            feature = ogr.Feature(featureDefn)
-
-            #add data
-            feature.SetField("ogc_fid", listMeta[0])
-            feature.SetField("id", listMeta[1])
-            feature.SetField("session_ti", listMeta[2])
-            feature.SetField("ka", listMeta[3])
-            feature.SetField("device", listMeta[4])
-            feature.SetField("channels_c", listMeta[5])
-            feature.SetField("channels", listMeta[6])
-            feature.SetField("resolution", listMeta[7])
-            feature.SetField("cloud_cove", listMeta[8])
-            feature.SetField("sun_angle", listMeta[9])
-            feature.SetField("name", listMeta[10])
-            feature.SetField("proc_level", listMeta[11])
-            feature.SetField("conditions", listMeta[12])
-            feature.SetField("history_or", listMeta[13])
-            feature.SetField("projects_c", listMeta[14])
-
-            feature.SetGeometry(layerSpaFil)
-            outLayer.CreateFeature(feature)
-
-            geo = layerSpaFil.ExportToWkt()
-            print u">>>> "+geo
-
-    # For Resurs-P only, if no geo
     (head, tail) = os.path.split(fileNameXML)
-    inShapefile = targetFolder + "/shapefiles/" + tail.replace('.xml', '.shp')
-    print inShapefile
-    inDriver = ogr.GetDriverByName("ESRI Shapefile")
-    inDataSource = inDriver.Open(inShapefile, 0)
-    inLayer = inDataSource.GetLayer()
-    featureDefn = inLayer.GetLayerDefn()
+    print tail
+
+    print u"RESULT:",layerSpaFil.ExportToWkt()
+
+    # Save to a new Shapefile
+    path = targetFolder+"/shapefiles/"
+    if not os.path.exists(path):
+        os.makedirs(path)
+    os.chdir(path)
+    outShapefile = tail.replace('.xml', '_c.shp')
+    print u"outShapefile: " + outShapefile
+    outDriver = ogr.GetDriverByName("ESRI Shapefile")
+
+    # Remove output shapefile if it already exists
+    if os.path.exists(outShapefile):
+        outDriver.DeleteDataSource(outShapefile)
+
+    outDataSource = outDriver.CreateDataSource(outShapefile)
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(3857)
+
+    outLayer = outDataSource.CreateLayer('spatial',srs, geom_type=ogr.wkbPolygon)
+
+    # # if not exist
+    # if not os.path.isfile(outShapefile):
+    #     raise IOError(u'Could not find file ')
+
+    # Add fields (create with ogr type)
+    outLayer.CreateField(ogr.FieldDefn("ogc_fid", ogr.OFTInteger))
+    outLayer.CreateField(ogr.FieldDefn("id", ogr.OFTInteger))
+    outLayer.CreateField(ogr.FieldDefn("session_ti", ogr.OFTString))
+    outLayer.CreateField(ogr.FieldDefn("ka", ogr.OFTString))
+    outLayer.CreateField(ogr.FieldDefn("device", ogr.OFTString))
+    outLayer.CreateField(ogr.FieldDefn("channels_c", ogr.OFTInteger))
+    outLayer.CreateField(ogr.FieldDefn("channels", ogr.OFTString))
+    outLayer.CreateField(ogr.FieldDefn("resolution", ogr.OFTReal))
+    outLayer.CreateField(ogr.FieldDefn("cloud_cove", ogr.OFTInteger))
+    outLayer.CreateField(ogr.FieldDefn("sun_angle", ogr.OFTString))
+    outLayer.CreateField(ogr.FieldDefn("name", ogr.OFTString))
+    outLayer.CreateField(ogr.FieldDefn("proc_level", ogr.OFTString))
+    outLayer.CreateField(ogr.FieldDefn("conditions", ogr.OFTString))
+    outLayer.CreateField(ogr.FieldDefn("history_or", ogr.OFTString))
+    outLayer.CreateField(ogr.FieldDefn("projects_c", ogr.OFTString))
+
+    featureDefn = outLayer.GetLayerDefn()
     feature = ogr.Feature(featureDefn)
-    layerSpaFil = inShapefile
-    print u"layerSpaFil >>> "+layerSpaFil
-    for feature in inLayer:
-        geom = feature.GetGeometryRef()
-        geo = geom.ExportToWkt()
-        print u"InSHP>>:"+geo
-    #geo = geom.ExportToWkt()
-    #print u">>>> "+geom
 
-    dbData = parce_db_data (u"D:\SUAI\PyCharm\BD_spiiras.xml")
-    print "dbname="+dbData[0]+" host=:"+dbData[1]+" port="+dbData[2]+" user="+dbData[3]+" password="+dbData[4]
+    #add data
+    feature.SetField("ogc_fid", listMeta[0])
+    feature.SetField("id", listMeta[1])
+    feature.SetField("session_ti", listMeta[2])
+    feature.SetField("ka", listMeta[3])
+    feature.SetField("device", listMeta[4])
+    feature.SetField("channels_c", listMeta[5])
+    feature.SetField("channels", listMeta[6])
+    feature.SetField("resolution", listMeta[7])
+    feature.SetField("cloud_cove", listMeta[8])
+    feature.SetField("sun_angle", listMeta[9])
+    feature.SetField("name", listMeta[10])
+    feature.SetField("proc_level", listMeta[11])
+    feature.SetField("conditions", listMeta[12])
+    feature.SetField("history_or", listMeta[13])
+    feature.SetField("projects_c", listMeta[14])
 
-    try:
-        conn = psycopg2.connect("dbname="+dbData[0]+" host="+dbData[1]+" port="+dbData[2]+" user="+dbData[3]+"password="+dbData[4])
-        print u"connecting is OK!"
-    except:
-        print "I am unable to connect to the database"
-        sys.exit(1)
+    feature.SetGeometry(layerSpaFil)
+    outLayer.CreateFeature(feature)
 
-    cur = conn.cursor()
+    geo = layerSpaFil.ExportToWkt()
+    print u">>>> "+geo
 
-    sql = '''INSERT INTO public.spc_vector_contur (geom, ogc_fid, id, session_ti, ka, device, channels_c, channels, resolution, cloud_cove, sun_angle, name, proc_level, conditions, history_or, projects_c) VALUES (ST_GeomFromText(%s, 3857), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
-    param = [geo, listMeta[0], listMeta[1], listMeta[2], listMeta[3], listMeta[4], listMeta[5], listMeta[6], listMeta[7], listMeta[8], listMeta[9], listMeta[10], listMeta[11], listMeta[12], listMeta[13], listMeta[14]]
-    print param
+    # # For Resurs-P only, if no geo
+    # (head, tail) = os.path.split(fileNameXML)
+    # inShapefile = targetFolder + "/shapefiles/" + tail.replace('.xml', '.shp')
+    # print inShapefile
+    # inDriver = ogr.GetDriverByName("ESRI Shapefile")
+    # inDataSource = inDriver.Open(inShapefile, 0)
+    # inLayer = inDataSource.GetLayer()
+    # featureDefn = inLayer.GetLayerDefn()
+    # feature = ogr.Feature(featureDefn)
+    # layerSpaFil = inShapefile
+    # print u"layerSpaFil >>> "+layerSpaFil
+    # for feature in inLayer:
+    #     geom = feature.GetGeometryRef()
+    #     geo = geom.ExportToWkt()
+    #     print u"InSHP>>:"+geo
+    # #geo = geom.ExportToWkt()
+    # #print u">>>> "+geom
 
-    cur.execute(sql, param)
-    conn.commit()
-
-    cur.close()
-    conn.close()
-
-    feature.Destroy()
-    inDataSource.Destroy()
-
-dbFile = u"D:\SUAI\PyCharm\BD_spiiras.xml"
-
-def parce_db_data (dbFile):
-    # Add doc about function
-    file = open(dbFile)
-    data = file.read()
-    file.close()
-    dom = parseString(data)
-
-    listDbData = []
-
-    # DB data
-    name = (dom.getElementsByTagName('NameBD')[0].toxml()).replace('<NameBD>',"'").replace('</NameBD>',"'")
-    listDbData.append(name)
-    host = (dom.getElementsByTagName('Host')[0].toxml()).replace('<Host>',"'").replace('</Host>',"'")
-    listDbData.append(host)
-    port = (dom.getElementsByTagName('Port')[0].toxml()).replace('<Port>',"'").replace('</Port>',"'")
-    listDbData.append(port)
-    user = (dom.getElementsByTagName('User')[0].toxml()).replace('<User>',"'").replace('</User>',"'")
-    listDbData.append(user)
-    passw = (dom.getElementsByTagName('Pass')[0].toxml()).replace('<Pass>',"'").replace('</Pass>',"'")
-    listDbData.append(passw)
-
-    return listDbData
+#     dbData = parce_db_data (u"D:\SUAI\PyCharm\BD_spiiras.xml")
+#     print "dbname="+dbData[0]+" host=:"+dbData[1]+" port="+dbData[2]+" user="+dbData[3]+" password="+dbData[4]
+#
+#     try:
+#         conn = psycopg2.connect("dbname="+dbData[0]+" host="+dbData[1]+" port="+dbData[2]+" user="+dbData[3]+"password="+dbData[4])
+#         print u"connecting is OK!"
+#     except:
+#         print "I am unable to connect to the database"
+#         sys.exit(1)
+#
+#     cur = conn.cursor()
+#
+#     sql = '''INSERT INTO public.spc_vector_contur (geom, ogc_fid, id, session_ti, ka, device, channels_c, channels, resolution, cloud_cove, sun_angle, name, proc_level, conditions, history_or, projects_c) VALUES (ST_GeomFromText(%s, 3857), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
+#     param = [geo, listMeta[0], listMeta[1], listMeta[2], listMeta[3], listMeta[4], listMeta[5], listMeta[6], listMeta[7], listMeta[8], listMeta[9], listMeta[10], listMeta[11], listMeta[12], listMeta[13], listMeta[14]]
+#     print param
+#
+#     cur.execute(sql, param)
+#     conn.commit()
+#
+#     cur.close()
+#     conn.close()
+#
+#     feature.Destroy()
+#
+# dbFile = u"D:\SUAI\PyCharm\BD_spiiras.xml"
+#
+# def parce_db_data (dbFile):
+#     # Add doc about function
+#     file = open(dbFile)
+#     data = file.read()
+#     file.close()
+#     dom = parseString(data)
+#
+#     listDbData = []
+#
+#     # DB data
+#     name = (dom.getElementsByTagName('NameBD')[0].toxml()).replace('<NameBD>',"'").replace('</NameBD>',"'")
+#     listDbData.append(name)
+#     host = (dom.getElementsByTagName('Host')[0].toxml()).replace('<Host>',"'").replace('</Host>',"'")
+#     listDbData.append(host)
+#     port = (dom.getElementsByTagName('Port')[0].toxml()).replace('<Port>',"'").replace('</Port>',"'")
+#     listDbData.append(port)
+#     user = (dom.getElementsByTagName('User')[0].toxml()).replace('<User>',"'").replace('</User>',"'")
+#     listDbData.append(user)
+#     passw = (dom.getElementsByTagName('Pass')[0].toxml()).replace('<Pass>',"'").replace('</Pass>',"'")
+#     listDbData.append(passw)
+#
+#     return listDbData
 
 
 """
@@ -491,3 +497,7 @@ write_CSV(listFileXML, targetFolder)
 #get_Cord(u'Z:/SiteliteIMG/Ленобл_Ресурс-П/2/0041_0102_10061_1_00083_02_10_003.xml')
 
 #convert_Cord(u"29:57:10.965841")
+
+#get_Detail_Region(u"J:/Resurs-P/07.08.2015/5383-РП_Ленинградская обл_геотон_КШМСА_ВР/293615_Гатчинский район_КШМСА_ВР/2143_02/fr_0042_0102_02150_1_02143_02_G_40_1.xml")
+
+
